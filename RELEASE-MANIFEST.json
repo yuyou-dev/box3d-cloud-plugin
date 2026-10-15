@@ -108,8 +108,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 2043,
-      "sha256": "5117a77c5aac2dec1d69d750fbd997fa5e5754b7e6f1f6c4b548f90f5259aa9c"
+      "bytes": 2227,
+      "sha256": "27f377e00716ccaa28dda218de0e8f4fe78f1a8a7ab90c36cc72e49aad0bdf5d"
     },
     {
       "path": "scripts/bootstrap.sh",
