@@ -1,0 +1,125 @@
+{
+  "version": "0.2.0",
+  "files": [
+    {
+      "path": "plugins/box3d-cloud/.codex-plugin/plugin.json",
+      "bytes": 413,
+      "sha256": "be4547b65ba255578e8d63f04dadc1379a44edae478bcb5de1c4a9a1e5b48275"
+    },
+    {
+      "path": "plugins/box3d-cloud/assets/logo.svg",
+      "bytes": 345,
+      "sha256": "e09451e6d2c22fd83ccc5932309a1069f842b405eef79f3aab0ab732ef621cda"
+    },
+    {
+      "path": "plugins/box3d-cloud/skills/design-workspace/SKILL.md",
+      "bytes": 3714,
+      "sha256": "5ae5d8958316d01345b71e459bdf66156ec344a8a9063d1b397bd572e465994b"
+    },
+    {
+      "path": "plugins/box3d-cloud/README.md",
+      "bytes": 1060,
+      "sha256": "2393347d9735b1082c7d2dbcb5e3cb90d65c5deb11202339fc947a0cb67c8c9e"
+    },
+    {
+      "path": "plugins/box3d-cloud/package.json",
+      "bytes": 275,
+      "sha256": "ce32ce913f4c360e662bc09fd23fb74bfaa872a098337552dce3b0d9a2369391"
+    },
+    {
+      "path": "plugins/box3d-cloud/package-lock.json",
+      "bytes": 57579,
+      "sha256": "107c06ab43ce92e57daabbdc77084e3ab66cb06bf3cbf4a3c1262a7f5a10ba52"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/profile.mjs",
+      "bytes": 379,
+      "sha256": "59060e9a253fd544fc07ccd42ef51d21144dca6a36ef77c51df85b5b36ecf9f2"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/store.mjs",
+      "bytes": 1184,
+      "sha256": "25846ecc46894659af2b7057e948cd52612e012828fc740e1ed3a4621b8b33b1"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/platform-auth.mjs",
+      "bytes": 3453,
+      "sha256": "0d395a614eb7c7193729f0f59de56c3da459c959885abd4b9e7b4b563cf20bef"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/onboarding.mjs",
+      "bytes": 7222,
+      "sha256": "75fda8fa2429a18a266a4fe97778adb14d968995a805ca92b86e8567b222ac4c"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/client.mjs",
+      "bytes": 5555,
+      "sha256": "10de0a589869c7ab9e079958a4670d985b1ee8f53d3bc632549d9b32f9b99636"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/bridge.mjs",
+      "bytes": 3920,
+      "sha256": "8d286a7ab81d2e1bc4a66d20e5bea89211bd651df9b18b310f44631bac10b2cd"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/start-mcp.mjs",
+      "bytes": 799,
+      "sha256": "52ae22d02bb5cf2ad7e6fdbc780767e294c612683616efa0a9360f5eb5724b1c"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/cli.mjs",
+      "bytes": 1517,
+      "sha256": "38e2470f7084bc67181b534ff45a8bc6bb676e7dc2c71e7ad95aa24792636a10"
+    },
+    {
+      "path": "plugins/box3d-cloud/scripts/build.mjs",
+      "bytes": 1040,
+      "sha256": "3a7a669ae83e0bea3b05ba128555952956c22ccf0dff17f7e66ec402f8cef67e"
+    },
+    {
+      "path": "plugins/box3d-cloud/dist/start-mcp.mjs",
+      "bytes": 779195,
+      "sha256": "74fb61f63fc90e96e56b59192cca55cd5721d774e4d12448efa758dbdcf7f009"
+    },
+    {
+      "path": "plugins/box3d-cloud/dist/cli.mjs",
+      "bytes": 754255,
+      "sha256": "88a24678f9dc6d8fe6c9f54754f0c408479aaf1e40de335340ce2acba904e5bf"
+    },
+    {
+      "path": "plugins/box3d-cloud/dist/THIRD-PARTY-NOTICES.txt",
+      "bytes": 13584,
+      "sha256": "0a7a91e63ae90128b0e707b9ae0d758bbc7ca7916d3627ea8e9db0c3ebb49c63"
+    },
+    {
+      "path": ".agents/plugins/marketplace.json",
+      "bytes": 262,
+      "sha256": "f00c14e6e963e29a4bde7611bb3a6b296a122e6f050d369c4e2c78bb3cbd80a5"
+    },
+    {
+      "path": "scripts/install.mjs",
+      "bytes": 2539,
+      "sha256": "1c4032948e82ba65ab348f4422e7c2d2a8229143f1f280e76dccf9c38d2486c6"
+    },
+    {
+      "path": "START_HERE.md",
+      "bytes": 3993,
+      "sha256": "6f686c66b79b8d15438118ef5c0c656db2736770ba49911c38b59f7fd5ecda94"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2043,
+      "sha256": "5117a77c5aac2dec1d69d750fbd997fa5e5754b7e6f1f6c4b548f90f5259aa9c"
+    },
+    {
+      "path": "scripts/bootstrap.sh",
+      "bytes": 2653,
+      "sha256": "19379a25e8e51976891e0846795322c38ad28c76a44a262cc9c8e66c55947fed"
+    },
+    {
+      "path": "scripts/bootstrap.ps1",
+      "bytes": 2652,
+      "sha256": "aad54a8f3adeea6c40cb161e3eef6c6c42c626c0a6be0fe313ea66a2db31cf09"
+    }
+  ]
+}

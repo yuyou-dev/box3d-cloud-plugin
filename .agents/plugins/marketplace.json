@@ -1,0 +1,1 @@
+{"name":"box3d-cloud-marketplace","interface":{"displayName":"Box3D 云端插件"},"plugins":[{"name":"box3d-cloud","source":{"source":"local","path":"./plugins/box3d-cloud"},"policy":{"installation":"AVAILABLE","authentication":"ON_USE"},"category":"Design"}]}

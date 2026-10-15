@@ -1,0 +1,11 @@
+import {Server} from '@modelcontextprotocol/sdk/server/index.js';
+import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
+import {ListToolsRequestSchema,CallToolRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import {createBridge} from './bridge.mjs';
+import {profile} from './profile.mjs';
+const server=new Server({name:'box3d-cloud',version:profile.version},{capabilities:{tools:{listChanged:true}}});
+const bridge=createBridge({changed:()=>server.sendToolListChanged()});
+server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:await bridge.list()}));
+server.setRequestHandler(CallToolRequestSchema,request=>bridge.call(request.params.name,request.params.arguments));
+server.onclose=()=>bridge.close();
+await server.connect(new StdioServerTransport());

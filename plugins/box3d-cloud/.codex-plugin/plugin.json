@@ -1,0 +1,6 @@
+{
+ "name":"box3d-cloud","version":"0.2.0",
+ "description":"连接 Box3D 云端工作台：浏览器登录配对、对话设计盒子、真实展开图和成盒预览、云端交付文件。",
+ "author":{"name":"Box3D Team"},"skills":"./skills/",
+ "interface":{"displayName":"Box3D 云端工作台","shortDescription":"用一句话设计盒子，算法和交付生成留在云端。","logo":"./assets/logo.svg"}
+}
