@@ -6,7 +6,12 @@ import { createHash } from 'node:crypto';
 function assertPlatformDestination(url,header,platformToken){
   if(platformToken&&(header!=='x-box3d-token'||url.protocol!=='https:'||url.port||!/^([a-z0-9-]+\.)+api-inference\.modelscope\.net$/.test(url.hostname)))throw Error('平台凭据仅允许发往确切 HTTPS *.api-inference.modelscope.net 地址，并使用独立 X-Box3D-Token');
 }
-export const remoteError=(config,error)=>[config.token,config.platformToken].filter(Boolean).reduce((text,secret)=>text.replaceAll(secret,'[REDACTED]'),String(error?.message||error));
+export function remoteError(config,error){
+  const message=String(error?.message||error);
+  if(message.includes('服务器正在计算预览或编译交付'))return '云端正在生成预览或交付文件，请等待当前任务完成后再试。';
+  if(/request limit exceeded|too many requests|HTTP 429/i.test(message))return '魔搭平台正在限流，请稍后再试。你的登录和已保存工程仍然保留。';
+  return [config.token,config.platformToken].filter(Boolean).reduce((text,secret)=>text.replaceAll(secret,'[REDACTED]'),message);
+}
 export function boundFetch(config,requestFetch=fetch){
   return (input,options={})=>{
     const url=new URL(typeof input==='object'&&'url' in input?input.url:String(input));

@@ -1,1 +1,1 @@
-{"name":"@box3d/cloud-connector","version":"0.2.0","private":true,"type":"module","engines":{"node":">=20.19.0"},"scripts":{"build":"node scripts/build.mjs"},"dependencies":{"@modelcontextprotocol/sdk":"1.32.1","oauth4webapi":"3.8.8"},"devDependencies":{"esbuild":"0.28.2"}}
+{"name":"@box3d/cloud-connector","version":"0.2.1","private":true,"type":"module","engines":{"node":">=20.19.0"},"scripts":{"build":"node scripts/build.mjs"},"dependencies":{"@modelcontextprotocol/sdk":"1.32.1","oauth4webapi":"3.8.8"},"devDependencies":{"esbuild":"0.28.2"}}

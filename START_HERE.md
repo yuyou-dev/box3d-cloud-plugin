@@ -4,12 +4,12 @@
 
 ## 1. 安装已发布的插件和 MCP
 
-目标版本：`v0.2.0`，公开来源仅 `https://github.com/yuyou-dev/box3d-cloud-plugin`。
+目标版本：`v0.2.1`，公开来源仅 `https://github.com/yuyou-dev/box3d-cloud-plugin`。
 
 1. 检查当前操作系统及 Codex 内置浏览器能力。需要有本机终端和内置浏览器的 Codex 桌面环境；网页版云端任务没有客户电脑浏览器与回环回调，不宣称支持。
 2. 从该版本公开仓库下载 `scripts/bootstrap.sh`（macOS/Linux）或 `scripts/bootstrap.ps1`（Windows），先阅读再执行，遵循宿主安装审批。脚本只安装用户目录中的官方 Node.js、必要时官方 Codex CLI，以及已发布薄连接器；从 GitHub Release 下载包并核验 SHA-256。不会安装 Box3D 核心代码、Python、Docker 或 Blender。
 3. 若系统缺少 Git，由你使用系统官方软件源安装；不要要求设计师复制命令。企业策略禁止安装、GitHub/Node.js 不可达或平台限流时，明确报告阻碍，不绕过限制。
-4. 安装器通过 `codex plugin marketplace add … --ref v0.2.0` 和 `codex plugin add box3d-cloud@box3d-cloud-marketplace` 从公开插件市场安装技能，再登记 `box3d_cloud` MCP 的绝对运行路径。不覆盖其他同名连接；已有冲突时说明具体连接，让用户选择切换。
+4. 安装器通过 `codex plugin marketplace add … --ref v0.2.1` 和 `codex plugin add box3d-cloud@box3d-cloud-marketplace` 从公开插件市场安装技能，再登记 `box3d_cloud` MCP 的绝对运行路径。同一连接器的版本升级保留登录；不覆盖其他同名连接，已有冲突时说明具体连接，让用户选择切换。
 5. 记录安装器返回的 `node`、`cli` 路径。不要读取 `.box3d-cloud/connection.json`。里面包含登录凭据。
 
 ## 2. 登录与配对

@@ -18917,7 +18917,7 @@ var profile = Object.freeze({
   browserOrigin: "https://yuyou80-box3d-server-pilot-20261015.ms.show",
   apiOrigin: "https://studio-yuyou80-box3d-server-pilot-20261015.api-inference.modelscope.net",
   issuer: "https://www.modelscope.cn",
-  version: "0.2.0"
+  version: "0.2.1"
 });
 
 // scripts/store.mjs
@@ -19269,9 +19269,33 @@ function assertClient(client) {
   }
   assertString(client.client_id, '"client.client_id"');
 }
-function None() {
-  return (_as, client, body, _headers) => {
-    body.set("client_id", client.client_id);
+function formUrlEncode(token) {
+  return encodeURIComponent(token).replace(/(?:[-_.!~*'()]|%20)/g, (substring) => {
+    switch (substring) {
+      case "-":
+      case "_":
+      case ".":
+      case "!":
+      case "~":
+      case "*":
+      case "'":
+      case "(":
+      case ")":
+        return `%${substring.charCodeAt(0).toString(16).toUpperCase()}`;
+      case "%20":
+        return "+";
+      default:
+        throw new Error();
+    }
+  });
+}
+function ClientSecretBasic(clientSecret) {
+  assertString(clientSecret, '"clientSecret"');
+  return (_as, client, _body, headers) => {
+    const username = formUrlEncode(client.client_id);
+    const password = formUrlEncode(clientSecret);
+    const credentials = btoa(`${username}:${password}`);
+    headers.set("authorization", `Basic ${credentials}`);
   };
 }
 var URLParse = URL.parse ? (url2, base) => URL.parse(url2, base) : (url2, base) => {
@@ -20358,25 +20382,23 @@ async function metadata() {
 }
 async function beginPlatformLogin(redirectUri) {
   const as = await metadata();
-  const response = await dynamicClientRegistrationRequest(as, { client_name: "Box3D Cloud Connector", redirect_uris: [redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none", scope: "openid profile api-inference" }, { signal: AbortSignal.timeout(2e4) });
+  const response = await dynamicClientRegistrationRequest(as, { client_name: "Box3D Cloud Connector", redirect_uris: [redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "client_secret_basic", scope: "openid profile api-inference" }, { signal: AbortSignal.timeout(2e4) });
   let registrationResponse = response;
   if (response.status === 200) {
     const data = await response.json();
-    if (data.token_endpoint_auth_method === "none") {
-      delete data.client_secret;
-      delete data.client_secret_expires_at;
-    }
+    if (data.client_secret && data.client_secret_expires_at === void 0) data.client_secret_expires_at = 0;
     registrationResponse = new Response(JSON.stringify(data), { status: 201, headers: { "Content-Type": "application/json" } });
   }
   const registration = await processDynamicClientRegistrationResponse(registrationResponse);
-  if (registration.token_endpoint_auth_method !== "none") throw Error("\u5E73\u53F0\u6682\u4E0D\u652F\u6301\u8BBE\u5907\u72EC\u7ACB\u767B\u5F55\uFF0C\u8BF7\u8054\u7CFB\u7BA1\u7406\u5458\u3002");
-  const client = { client_id: registration.client_id, token_endpoint_auth_method: "none" };
+  if (registration.token_endpoint_auth_method !== "client_secret_basic") throw Error("\u5E73\u53F0\u6682\u4E0D\u652F\u6301\u8BBE\u5907\u72EC\u7ACB\u767B\u5F55\uFF0C\u8BF7\u8054\u7CFB\u7BA1\u7406\u5458\u3002");
+  const client = { client_id: registration.client_id, token_endpoint_auth_method: "client_secret_basic", client_secret: registration.client_secret };
   const state = generateRandomState(), nonce = generateRandomNonce(), verifier = generateRandomCodeVerifier();
   const url2 = new URL(as.authorization_endpoint);
   url2.search = new URLSearchParams({ client_id: client.client_id, redirect_uri: redirectUri, response_type: "code", scope: "openid profile api-inference", state, nonce, code_challenge: await calculatePKCECodeChallenge(verifier), code_challenge_method: "S256" }).toString();
   return { url: url2.href, async complete(callback) {
     const params = validateAuthResponse(as, client, new URL(callback), state);
-    const result2 = await authorizationCodeGrantRequest(as, client, None(), params, redirectUri, verifier, { signal: AbortSignal.timeout(2e4) });
+    let result2 = await authorizationCodeGrantRequest(as, client, ClientSecretBasic(client.client_secret), params, redirectUri, verifier, { signal: AbortSignal.timeout(2e4) });
+    result2 = await tokenResponse(result2);
     const tokens = await processAuthorizationCodeResponse(as, client, result2, { expectedNonce: nonce, requireIdToken: true });
     await validateApplicationLevelSignature(as, result2);
     return { client, accessToken: tokens.access_token, refreshToken: tokens.refresh_token, expiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1e3 };
@@ -20386,9 +20408,14 @@ async function refreshPlatformLogin(saved) {
   if (saved.expiresAt > Date.now() + 6e4) return saved;
   if (!saved.refreshToken) throw Error("\u9B54\u642D\u767B\u5F55\u5DF2\u5230\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002");
   const as = await metadata();
-  const response = await refreshTokenGrantRequest(as, saved.client, None(), saved.refreshToken, { signal: AbortSignal.timeout(2e4) });
-  const tokens = await processRefreshTokenResponse(as, saved.client, response);
+  const response = await refreshTokenGrantRequest(as, saved.client, ClientSecretBasic(saved.client.client_secret), saved.refreshToken, { signal: AbortSignal.timeout(2e4) });
+  const tokens = await processRefreshTokenResponse(as, saved.client, await tokenResponse(response));
   return { ...saved, accessToken: tokens.access_token, refreshToken: tokens.refresh_token || saved.refreshToken, expiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1e3 };
+}
+async function tokenResponse(response) {
+  if (response.status !== 200) return response;
+  const body = await response.clone().json();
+  return body.error ? new Response(JSON.stringify(body), { status: 400, headers: { "Content-Type": "application/json" } }) : response;
 }
 
 // scripts/client.mjs
@@ -20399,7 +20426,12 @@ import { createHash } from "node:crypto";
 function assertPlatformDestination(url2, header, platformToken) {
   if (platformToken && (header !== "x-box3d-token" || url2.protocol !== "https:" || url2.port || !/^([a-z0-9-]+\.)+api-inference\.modelscope\.net$/.test(url2.hostname))) throw Error("\u5E73\u53F0\u51ED\u636E\u4EC5\u5141\u8BB8\u53D1\u5F80\u786E\u5207 HTTPS *.api-inference.modelscope.net \u5730\u5740\uFF0C\u5E76\u4F7F\u7528\u72EC\u7ACB X-Box3D-Token");
 }
-var remoteError = (config2, error2) => [config2.token, config2.platformToken].filter(Boolean).reduce((text, secret) => text.replaceAll(secret, "[REDACTED]"), String(error2?.message || error2));
+function remoteError(config2, error2) {
+  const message = String(error2?.message || error2);
+  if (message.includes("\u670D\u52A1\u5668\u6B63\u5728\u8BA1\u7B97\u9884\u89C8\u6216\u7F16\u8BD1\u4EA4\u4ED8")) return "\u4E91\u7AEF\u6B63\u5728\u751F\u6210\u9884\u89C8\u6216\u4EA4\u4ED8\u6587\u4EF6\uFF0C\u8BF7\u7B49\u5F85\u5F53\u524D\u4EFB\u52A1\u5B8C\u6210\u540E\u518D\u8BD5\u3002";
+  if (/request limit exceeded|too many requests|HTTP 429/i.test(message)) return "\u9B54\u642D\u5E73\u53F0\u6B63\u5728\u9650\u6D41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002\u4F60\u7684\u767B\u5F55\u548C\u5DF2\u4FDD\u5B58\u5DE5\u7A0B\u4ECD\u7136\u4FDD\u7559\u3002";
+  return [config2.token, config2.platformToken].filter(Boolean).reduce((text, secret) => text.replaceAll(secret, "[REDACTED]"), message);
+}
 function boundFetch(config2, requestFetch = fetch) {
   return (input, options = {}) => {
     const url2 = new URL(typeof input === "object" && "url" in input ? input.url : String(input));
@@ -20487,7 +20519,7 @@ function createFileBridge(config2, requestFetch = fetch) {
 var escape2 = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 var page = (title, body) => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title} \xB7 Box3D</title><style>body{font:16px system-ui;background:#171a1c;color:#f7f5ee;display:grid;place-items:center;min-height:95vh}main{width:min(520px,85vw);padding:36px 0}h1{font-size:32px}p{line-height:1.8;color:#c8c9c9}a{display:inline-block;background:#ecd6a3;color:#222;padding:14px 20px;border-radius:8px;text-decoration:none;margin:12px 0}code{font:26px monospace;letter-spacing:3px;color:#ecd6a3}small{color:#b8bdc0}</style><main><small>BOX3D / \u8FDE\u63A5\u4F60\u7684\u4E91\u7AEF\u5DE5\u4F5C\u53F0</small><h1>${title}</h1>${body}</main></html>`;
 function createOnboarding({ profile: profile2 = profile, store = createStore(), platformLogin = beginPlatformLogin, refresh = refreshPlatformLogin, request = fetch } = {}) {
-  let server, login, localOrigin, nonce, state = "idle", message = "", pending, platform, expiresAt = 0;
+  let phase = "login", server, login, localOrigin, nonce, state = "idle", message = "", pending, platform, expiresAt = 0;
   async function api(route, body) {
     const r = await request(profile2.apiOrigin + route, { method: body === void 0 ? "GET" : "POST", headers: { Authorization: "Bearer " + platform.accessToken, ...body === void 0 ? {} : { "Content-Type": "application/json" } }, ...body === void 0 ? {} : { body: JSON.stringify(body) }, redirect: "error", signal: AbortSignal.timeout(2e4) });
     if (!r.ok) throw Error(r.status === 429 ? "\u9B54\u642D\u6216 Box3D \u6B63\u5728\u9650\u6D41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8FDE\u63A5\u3002" : r.status === 401 || r.status === 403 ? "\u9B54\u642D\u6682\u672A\u5141\u8BB8\u6B64\u767B\u5F55\u8BBF\u95EE\u521B\u7A7A\u95F4 API\u3002\u8BF7\u8054\u7CFB\u670D\u52A1\u7BA1\u7406\u5458\u3002" : `\u4E91\u7AEF\u8FDE\u63A5\u6682\u65F6\u4E0D\u53EF\u7528\uFF08${r.status}\uFF09\u3002`);
@@ -20521,16 +20553,19 @@ function createOnboarding({ profile: profile2 = profile, store = createStore(), 
       if (url2.pathname === "/callback" && state === "awaiting_platform") {
         state = "checking_platform";
         try {
+          phase = "login";
           platform = await login.complete(url2.href);
+          phase = "access";
           await api("/healthz");
+          phase = "pairing";
           pending = await api("/api/pairings/start", { label: "Codex \xB7 " + os3.hostname().slice(0, 48) });
           state = "awaiting_pairing";
           message = "\u9B54\u642D\u5DF2\u767B\u5F55\u3002\u8BF7\u5728 Box3D \u5DE5\u4F5C\u533A\u70B9\u51FB\u201C\u8FDE\u63A5 Codex\u201D\uFF0C\u8F93\u5165\u914D\u5BF9\u7801\u5E76\u786E\u8BA4\u3002";
           return send(200, page("\u9B54\u642D\u5DF2\u767B\u5F55", `<p>\u6253\u5F00\u5DE5\u4F5C\u53F0\uFF0C\u767B\u5F55\u4F60\u7684 Box3D \u6D4B\u8BD5\u8D26\u53F7\uFF0C\u7136\u540E\u70B9\u51FB\u201C\u8FDE\u63A5 Codex\u201D\u3002</p><p>\u672C\u6B21\u914D\u5BF9\u7801</p><code>${escape2(pending.code.match(/.{1,4}/g).join(" "))}</code><p>\u914D\u5BF9\u7801\u5341\u5206\u949F\u6709\u6548\u3002\u786E\u8BA4\u8FDE\u63A5\u540E\u56DE\u5230 Codex \u5373\u53EF\u5F00\u59CB\u8BBE\u8BA1\u3002</p><a href="${profile2.communityUrl}">\u6253\u5F00 Box3D \u5DE5\u4F5C\u53F0</a>`));
-        } catch {
+        } catch (error2) {
           state = "error";
-          message = "\u9B54\u642D\u767B\u5F55\u6216\u521B\u7A7A\u95F4\u8BBF\u95EE\u672A\u5B8C\u6210\u3002\u8BF7\u91CD\u65B0\u8FDE\u63A5\uFF1B\u82E5\u4ECD\u5931\u8D25\uFF0C\u8BF7\u8054\u7CFB\u7BA1\u7406\u5458\u68C0\u67E5\u5E73\u53F0\u6388\u6743\u3002";
-          return send(400, page("\u8FDE\u63A5\u5C1A\u672A\u5B8C\u6210", `<p>${message}</p>`));
+          message = phase === "login" ? "\u9B54\u642D\u6388\u6743\u672A\u5B8C\u6210\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002\u82E5\u4ECD\u5931\u8D25\uFF0C\u8BF7\u8054\u7CFB\u7BA1\u7406\u5458\u68C0\u67E5\u8FDE\u63A5\u5668\u7248\u672C\u3002" : error2.message;
+          return send(400, page("\u8FDE\u63A5\u5C1A\u672A\u5B8C\u6210", `<p>${escape2(message)}</p>`));
         }
       }
       send(404, "\u9875\u9762\u4E0D\u5B58\u5728");

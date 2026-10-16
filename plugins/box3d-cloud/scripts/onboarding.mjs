@@ -9,7 +9,7 @@ import {connectionConfig} from './client.mjs';
 const escape=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 const page=(title,body)=>`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title} · Box3D</title><style>body{font:16px system-ui;background:#171a1c;color:#f7f5ee;display:grid;place-items:center;min-height:95vh}main{width:min(520px,85vw);padding:36px 0}h1{font-size:32px}p{line-height:1.8;color:#c8c9c9}a{display:inline-block;background:#ecd6a3;color:#222;padding:14px 20px;border-radius:8px;text-decoration:none;margin:12px 0}code{font:26px monospace;letter-spacing:3px;color:#ecd6a3}small{color:#b8bdc0}</style><main><small>BOX3D / 连接你的云端工作台</small><h1>${title}</h1>${body}</main></html>`;
 export function createOnboarding({profile=defaultProfile,store=createStore(),platformLogin=beginPlatformLogin,refresh=refreshPlatformLogin,request=fetch}={}){
-  let server,login,localOrigin,nonce,state='idle',message='',pending,platform,expiresAt=0;
+  let phase='login',server,login,localOrigin,nonce,state='idle',message='',pending,platform,expiresAt=0;
   async function api(route,body){
     const r=await request(profile.apiOrigin+route,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+platform.accessToken,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'error',signal:AbortSignal.timeout(20000)});
     if(!r.ok)throw Error(r.status===429?'魔搭或 Box3D 正在限流，请稍后再连接。':r.status===401||r.status===403?'魔搭暂未允许此登录访问创空间 API。请联系服务管理员。':`云端连接暂时不可用（${r.status}）。`);
@@ -29,11 +29,11 @@ export function createOnboarding({profile=defaultProfile,store=createStore(),pla
       if(url.pathname==='/callback'&&state==='awaiting_platform'){
         state='checking_platform';
         try{
-          platform=await login.complete(url.href);await api('/healthz');
+          phase='login';platform=await login.complete(url.href);phase='access';await api('/healthz');phase='pairing';
           pending=await api('/api/pairings/start',{label:'Codex · '+os.hostname().slice(0,48)});
           state='awaiting_pairing';message='魔搭已登录。请在 Box3D 工作区点击“连接 Codex”，输入配对码并确认。';
           return send(200,page('魔搭已登录',`<p>打开工作台，登录你的 Box3D 测试账号，然后点击“连接 Codex”。</p><p>本次配对码</p><code>${escape(pending.code.match(/.{1,4}/g).join(' '))}</code><p>配对码十分钟有效。确认连接后回到 Codex 即可开始设计。</p><a href="${profile.communityUrl}">打开 Box3D 工作台</a>`));
-        }catch{state='error';message='魔搭登录或创空间访问未完成。请重新连接；若仍失败，请联系管理员检查平台授权。';return send(400,page('连接尚未完成',`<p>${message}</p>`));}
+        }catch(error){state='error';message=phase==='login'?'魔搭授权未完成，请重新连接。若仍失败，请联系管理员检查连接器版本。':error.message;return send(400,page('连接尚未完成',`<p>${escape(message)}</p>`));}
       }
       send(404,'页面不存在');
     });
