@@ -19605,7 +19605,7 @@ var profile = Object.freeze({
   browserOrigin: "https://yuyou80-box3d-server-pilot-20261015.ms.show",
   apiOrigin: "https://studio-yuyou80-box3d-server-pilot-20261015.api-inference.modelscope.net",
   issuer: "https://www.modelscope.cn",
-  version: "0.2.1"
+  version: "0.2.2"
 });
 
 // scripts/store.mjs

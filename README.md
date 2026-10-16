@@ -1,12 +1,12 @@
 # Box3D 云端工作台插件
 
-> v0.2.1：已在 macOS Codex 桌面环境完成真实魔搭登录、工作区配对、云端新建/另存/改稿及保存重开 2D/3D 验证。Windows/Linux 安装脚本已提供，尚未完成对应实机验收。
+> v0.2.2：已在 macOS Codex 桌面环境完成真实魔搭登录、工作区配对、云端新建/另存/改稿及保存重开 2D/3D 验证。Windows/Linux 安装脚本已提供，尚未完成对应实机验收。
 
 这是 Box3D 的公开 Codex 插件市场和薄 MCP 连接器。盒型算法、折叠几何、渲染、导出和用户工程保存在云端服务；本仓库不包含 Box3D 服务端或管理员凭据。
 
 把下面这句话发给客户的 Codex：
 
-> 帮我安装并连接 Box3D 云端工作台，按 https://raw.githubusercontent.com/yuyou-dev/box3d-cloud-plugin/v0.2.1/START_HERE.md 自动完成配置并打开登录页；魔搭和 Box3D 账号密码由我在浏览器中输入。
+> 帮我安装并连接 Box3D 云端工作台，按 https://raw.githubusercontent.com/yuyou-dev/box3d-cloud-plugin/v0.2.2/START_HERE.md 自动完成配置并打开登录页；魔搭和 Box3D 账号密码由我在浏览器中输入。
 
 客户需要 Codex 桌面环境、自己的魔搭账号及管理员单独提供的 Box3D 邀请账号。首次安装与账号授权遵循客户设备的安全确认。支持的安装脚本覆盖 macOS、Linux 和 Windows；实际完成验证的系统见发行说明。
 

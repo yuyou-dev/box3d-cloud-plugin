@@ -1,10 +1,10 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "files": [
     {
       "path": "plugins/box3d-cloud/.codex-plugin/plugin.json",
       "bytes": 413,
-      "sha256": "a48b7272b9a286211edb8e3ea78a858f9aebf8e6f1438b469f80a8418d104b51"
+      "sha256": "d0a104c8bedf3887d0d058717323ec4de773119c4efd8d3a054cd6ada96bad9a"
     },
     {
       "path": "plugins/box3d-cloud/assets/logo.svg",
@@ -19,22 +19,22 @@
     {
       "path": "plugins/box3d-cloud/README.md",
       "bytes": 1060,
-      "sha256": "1e51ffe5a93673e2d639e1d7a11562ba890de0533d598b53547732cff0bf28a4"
+      "sha256": "78e90ac62166c85455d73337f1cf5291f32c8e27898f6fc3cbe03cb97ed54362"
     },
     {
       "path": "plugins/box3d-cloud/package.json",
       "bytes": 275,
-      "sha256": "eae38dc1c180857fe59f09403037b6c5cf46ed517f1a3b665504d6e86a8c3193"
+      "sha256": "8d7e6153f637faa5a8aee5c6b58bf991d93a828e59192cdac228b095124ff036"
     },
     {
       "path": "plugins/box3d-cloud/package-lock.json",
       "bytes": 57579,
-      "sha256": "36318a81883664c4803e7b13f9e44ab6e86c1a3eaea6df66695071211f9a0676"
+      "sha256": "ac95f8d12dd8935d1f0e99f62aebda3029993b9a4cf8e14d484687e084d0d349"
     },
     {
       "path": "plugins/box3d-cloud/scripts/profile.mjs",
       "bytes": 379,
-      "sha256": "97cd68d15826ea05541b9dd1a2b41a8898ce752d3207b392a9631e2230893553"
+      "sha256": "790dc9bc0fe8576061f6698eadc9cb49e431d0c9144d5949bd2a5d85fee27e62"
     },
     {
       "path": "plugins/box3d-cloud/scripts/store.mjs",
@@ -79,12 +79,12 @@
     {
       "path": "plugins/box3d-cloud/dist/start-mcp.mjs",
       "bytes": 781074,
-      "sha256": "6acb71a7cd4cffe82cd8ca2cedd1cf719cf46f747ab687f093e0795531bbbe0e"
+      "sha256": "fffba108fadfd9edf9a1f87bfb79ae85e7c9147282f0a7ed84342beffd4d8966"
     },
     {
       "path": "plugins/box3d-cloud/dist/cli.mjs",
       "bytes": 756134,
-      "sha256": "74704c68b1c95e40c999f3507b12e88f955b8966d253b2ec98dc2609afa28679"
+      "sha256": "5327410c26c6b56f85f360f233b33ea5b8574314c6530519f86aaf873dc2420c"
     },
     {
       "path": "plugins/box3d-cloud/dist/THIRD-PARTY-NOTICES.txt",
@@ -98,28 +98,28 @@
     },
     {
       "path": "scripts/install.mjs",
-      "bytes": 2677,
-      "sha256": "b582739765e8754e85c2955237a9c6a7e229f9e4a560173b557a5c625f2b990e"
+      "bytes": 3220,
+      "sha256": "11cd7e52b31ddd04368630b2697a23ee411e74eaf628304942337d2a0c851461"
     },
     {
       "path": "START_HERE.md",
       "bytes": 4038,
-      "sha256": "ab9ac0de16498a619132edbcae26a93a36d5dc06f7940f11b0f4025e9cee5f44"
+      "sha256": "17f750fd8716e807ae7a765142356dbbdb6ee3c7b1614b8feb2c68ce92a7a7d5"
     },
     {
       "path": "README.md",
       "bytes": 2260,
-      "sha256": "c5bc04936c625c43ccfffa82408e5c5799cd0a15b5ff0892beae38f07462f22b"
+      "sha256": "01400d1e2ab2f07684bb9167e70a50478ecc6b8fbaca59f3d916571ef1ba34cf"
     },
     {
       "path": "scripts/bootstrap.sh",
       "bytes": 2653,
-      "sha256": "2f95522072575749c905faec9385a53ee9ea5092fb0457ac81e8411265822bf1"
+      "sha256": "da6a7b7696fae18e85155709f49adf9f5f6720a052c47d226dad2b5e03bc50b1"
     },
     {
       "path": "scripts/bootstrap.ps1",
       "bytes": 2652,
-      "sha256": "65dcb78bc7da283fa0068ff4132c36a0019f5ef5bca9e3e1642a0515fd649cfe"
+      "sha256": "9cfb2ba713fe1234060af59642276215d9aecaa7d70748af43f3d5546154d6fa"
     }
   ]
 }
