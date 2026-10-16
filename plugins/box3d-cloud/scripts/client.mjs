@@ -9,7 +9,7 @@ function assertPlatformDestination(url,header,platformToken){
 export function remoteError(config,error){
   const message=String(error?.message||error);
   if(message.includes('服务器正在计算预览或编译交付'))return '云端正在生成预览或交付文件，请等待当前任务完成后再试。';
-  if(/request limit exceeded|too many requests|HTTP 429/i.test(message))return '魔搭平台正在限流，请稍后再试。你的登录和已保存工程仍然保留。';
+  if(/request limit exceeded|too many requests|HTTP 429/i.test(message))return '云端请求受到限流，来源待确认。请稍后再试，已有登录和工程仍然保留。';
   return [config.token,config.platformToken].filter(Boolean).reduce((text,secret)=>text.replaceAll(secret,'[REDACTED]'),message);
 }
 export function boundFetch(config,requestFetch=fetch){
@@ -17,7 +17,7 @@ export function boundFetch(config,requestFetch=fetch){
     const url=new URL(typeof input==='object'&&'url' in input?input.url:String(input));
     if(url.origin!==config.origin)throw Error('远程请求不得离开已配置的精确服务 origin');
     assertPlatformDestination(url,config.tokenHeader||'authorization',config.platformToken);
-    return requestFetch(input,{...options,redirect:'error'});
+    return config.requestGate?config.requestGate.fetch(input,{...options,redirect:'error'},requestFetch):requestFetch(input,{...options,redirect:'error'});
   };
 }
 export function connectionConfig(env = process.env) {

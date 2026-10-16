@@ -18917,7 +18917,7 @@ var profile = Object.freeze({
   browserOrigin: "https://yuyou80-box3d-server-pilot-20261015.ms.show",
   apiOrigin: "https://studio-yuyou80-box3d-server-pilot-20261015.api-inference.modelscope.net",
   issuer: "https://www.modelscope.cn",
-  version: "0.2.2"
+  version: "0.2.3"
 });
 
 // scripts/store.mjs
@@ -20429,7 +20429,7 @@ function assertPlatformDestination(url2, header, platformToken) {
 function remoteError(config2, error2) {
   const message = String(error2?.message || error2);
   if (message.includes("\u670D\u52A1\u5668\u6B63\u5728\u8BA1\u7B97\u9884\u89C8\u6216\u7F16\u8BD1\u4EA4\u4ED8")) return "\u4E91\u7AEF\u6B63\u5728\u751F\u6210\u9884\u89C8\u6216\u4EA4\u4ED8\u6587\u4EF6\uFF0C\u8BF7\u7B49\u5F85\u5F53\u524D\u4EFB\u52A1\u5B8C\u6210\u540E\u518D\u8BD5\u3002";
-  if (/request limit exceeded|too many requests|HTTP 429/i.test(message)) return "\u9B54\u642D\u5E73\u53F0\u6B63\u5728\u9650\u6D41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002\u4F60\u7684\u767B\u5F55\u548C\u5DF2\u4FDD\u5B58\u5DE5\u7A0B\u4ECD\u7136\u4FDD\u7559\u3002";
+  if (/request limit exceeded|too many requests|HTTP 429/i.test(message)) return "\u4E91\u7AEF\u8BF7\u6C42\u53D7\u5230\u9650\u6D41\uFF0C\u6765\u6E90\u5F85\u786E\u8BA4\u3002\u8BF7\u7A0D\u540E\u518D\u8BD5\uFF0C\u5DF2\u6709\u767B\u5F55\u548C\u5DE5\u7A0B\u4ECD\u7136\u4FDD\u7559\u3002";
   return [config2.token, config2.platformToken].filter(Boolean).reduce((text, secret) => text.replaceAll(secret, "[REDACTED]"), message);
 }
 function boundFetch(config2, requestFetch = fetch) {
@@ -20437,7 +20437,7 @@ function boundFetch(config2, requestFetch = fetch) {
     const url2 = new URL(typeof input === "object" && "url" in input ? input.url : String(input));
     if (url2.origin !== config2.origin) throw Error("\u8FDC\u7A0B\u8BF7\u6C42\u4E0D\u5F97\u79BB\u5F00\u5DF2\u914D\u7F6E\u7684\u7CBE\u786E\u670D\u52A1 origin");
     assertPlatformDestination(url2, config2.tokenHeader || "authorization", config2.platformToken);
-    return requestFetch(input, { ...options, redirect: "error" });
+    return config2.requestGate ? config2.requestGate.fetch(input, { ...options, redirect: "error" }, requestFetch) : requestFetch(input, { ...options, redirect: "error" });
   };
 }
 function connectionConfig(env = process.env) {
@@ -20515,14 +20515,61 @@ function createFileBridge(config2, requestFetch = fetch) {
   };
 }
 
+// scripts/cloud-errors.mjs
+function retryDelay(value, attempt = 0, now = Date.now(), random2 = Math.random) {
+  if (value) {
+    const seconds = /^\d+(?:\.\d+)?$/.test(value.trim()) ? Number(value) : NaN;
+    const delay = Number.isFinite(seconds) ? seconds * 1e3 : Date.parse(value) - now;
+    if (Number.isFinite(delay) && delay >= 0) return Math.max(1e3, delay);
+  }
+  return Math.round(Math.min(6e4, 1e4 * 2 ** Math.min(attempt, 3)) * (1 + random2() * 0.2));
+}
+async function responseError(response, { path: path4, phase, attempt = 0, now = Date.now(), random: random2 = Math.random } = {}) {
+  const limited = response.status === 429, retryable = limited || [502, 503, 504].includes(response.status);
+  const retryAfterMs = retryable ? retryDelay(response.headers.get("retry-after"), attempt, now, random2) : void 0;
+  let body;
+  try {
+    body = await response.clone().json();
+  } catch {
+  }
+  const candidate = response.headers.get("x-request-id") || body?.error?.request_id;
+  const requestId = typeof candidate === "string" && /^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(candidate) ? candidate : void 0;
+  const diagnostic = { httpStatus: response.status, source: "unknown", path: path4, phase, code: `HTTP_${response.status}`, retryable, ...requestId ? { requestId } : {}, ...retryable ? { retryAfterMs, retryAt: now + retryAfterMs } : {} };
+  return Object.assign(Error(limited ? "\u4E91\u7AEF\u8BF7\u6C42\u53D7\u5230\u9650\u6D41\uFF0C\u6765\u6E90\u5F85\u786E\u8BA4\uFF1B\u8BF7\u6309\u63D0\u793A\u65F6\u95F4\u7A0D\u540E\u518D\u8BD5\u3002" : retryable ? "\u4E91\u7AEF\u670D\u52A1\u6682\u65F6\u7E41\u5FD9\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002" : `\u4E91\u7AEF\u8BF7\u6C42\u672A\u5B8C\u6210\uFF08${response.status}\uFF09\u3002`), { diagnostic });
+}
+function createRequestGate({ now = Date.now, random: random2 = Math.random } = {}) {
+  let failure2, attempt = 0;
+  return {
+    pending() {
+      return failure2 && failure2.diagnostic.retryAt > now() ? failure2 : void 0;
+    },
+    async fetch(input, options = {}, request = fetch) {
+      const blocked = this.pending();
+      if (blocked) throw blocked;
+      const response = await request(input, options);
+      if (response.status === 429 || [502, 503, 504].includes(response.status)) {
+        const error2 = await responseError(response, { path: new URL(typeof input === "object" && "url" in input ? input.url : String(input)).pathname, phase: "cloud_request", attempt, now: now(), random: random2 });
+        if (error2.diagnostic.retryable) {
+          failure2 = error2;
+          attempt++;
+        }
+        throw error2;
+      }
+      failure2 = void 0;
+      attempt = 0;
+      return response;
+    }
+  };
+}
+
 // scripts/onboarding.mjs
 var escape2 = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 var page = (title, body) => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title} \xB7 Box3D</title><style>body{font:16px system-ui;background:#171a1c;color:#f7f5ee;display:grid;place-items:center;min-height:95vh}main{width:min(520px,85vw);padding:36px 0}h1{font-size:32px}p{line-height:1.8;color:#c8c9c9}a{display:inline-block;background:#ecd6a3;color:#222;padding:14px 20px;border-radius:8px;text-decoration:none;margin:12px 0}code{font:26px monospace;letter-spacing:3px;color:#ecd6a3}small{color:#b8bdc0}</style><main><small>BOX3D / \u8FDE\u63A5\u4F60\u7684\u4E91\u7AEF\u5DE5\u4F5C\u53F0</small><h1>${title}</h1>${body}</main></html>`;
-function createOnboarding({ profile: profile2 = profile, store = createStore(), platformLogin = beginPlatformLogin, refresh = refreshPlatformLogin, request = fetch } = {}) {
-  let phase = "login", server, login, localOrigin, nonce, state = "idle", message = "", pending, platform, expiresAt = 0;
+function createOnboarding({ profile: profile2 = profile, store = createStore(), platformLogin = beginPlatformLogin, refresh = refreshPlatformLogin, request = fetch, now = Date.now, random: random2 = Math.random } = {}) {
+  let phase = "login", server, login, localOrigin, nonce, state = "idle", message = "", pending, platform, expiresAt = 0, nextPollAt = 0, attempt = 0, diagnostic, polling;
   async function api(route, body) {
     const r = await request(profile2.apiOrigin + route, { method: body === void 0 ? "GET" : "POST", headers: { Authorization: "Bearer " + platform.accessToken, ...body === void 0 ? {} : { "Content-Type": "application/json" } }, ...body === void 0 ? {} : { body: JSON.stringify(body) }, redirect: "error", signal: AbortSignal.timeout(2e4) });
-    if (!r.ok) throw Error(r.status === 429 ? "\u9B54\u642D\u6216 Box3D \u6B63\u5728\u9650\u6D41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8FDE\u63A5\u3002" : r.status === 401 || r.status === 403 ? "\u9B54\u642D\u6682\u672A\u5141\u8BB8\u6B64\u767B\u5F55\u8BBF\u95EE\u521B\u7A7A\u95F4 API\u3002\u8BF7\u8054\u7CFB\u670D\u52A1\u7BA1\u7406\u5458\u3002" : `\u4E91\u7AEF\u8FDE\u63A5\u6682\u65F6\u4E0D\u53EF\u7528\uFF08${r.status}\uFF09\u3002`);
+    if (!r.ok) throw await responseError(r, { path: route, phase: route.endsWith("/poll") ? "pairing_poll" : phase, attempt, now: now(), random: random2 });
     return r.json();
   }
   async function stop() {
@@ -20532,14 +20579,17 @@ function createOnboarding({ profile: profile2 = profile, store = createStore(), 
       server = void 0;
     }
   }
-  const safeStatus = () => ({ ok: state !== "error", state, message, ...pending ? { pairingCode: pending.code, expiresAt: pending.expiresAt, openUrl: profile2.communityUrl } : {}, ...state === "awaiting_platform" ? { loginUrl: localOrigin + "/start/" + nonce } : {}, communityUrl: profile2.communityUrl });
+  const safeStatus = () => ({ ok: !["error", "expired"].includes(state), state, message, ...diagnostic ? { diagnostic, pairingRetained: !!pending } : {}, ...nextPollAt ? { retryAt: nextPollAt } : {}, ...pending ? { pairingCode: pending.code, expiresAt: pending.expiresAt, openUrl: profile2.communityUrl } : {}, ...state === "awaiting_platform" ? { loginUrl: localOrigin + "/start/" + nonce } : {}, communityUrl: profile2.communityUrl });
   async function begin() {
-    if (server && expiresAt > Date.now() && ["awaiting_platform", "awaiting_pairing"].includes(state)) return safeStatus();
+    if (server && expiresAt > now() && ["awaiting_platform", "awaiting_pairing", "retry_wait"].includes(state)) return safeStatus();
     await stop();
     pending = void 0;
+    diagnostic = void 0;
+    nextPollAt = 0;
+    attempt = 0;
     state = "starting";
     message = "\u6B63\u5728\u51C6\u5907\u9B54\u642D\u767B\u5F55\u2026";
-    expiresAt = Date.now() + 15 * 60 * 1e3;
+    expiresAt = now() + 15 * 60 * 1e3;
     nonce = randomBytes2(24).toString("hex");
     server = http.createServer(async (req, res) => {
       const send = (status2, html) => {
@@ -20547,7 +20597,7 @@ function createOnboarding({ profile: profile2 = profile, store = createStore(), 
         res.end(html);
       };
       if (req.headers.host !== new URL(localOrigin).host || req.method !== "GET" || req.headers.origin && req.headers.origin !== localOrigin) return send(403, "\u4E0D\u63A5\u53D7\u6B64\u8BF7\u6C42");
-      if (Date.now() > expiresAt) return send(410, page("\u8FDE\u63A5\u5DF2\u8FC7\u671F", "<p>\u8BF7\u56DE\u5230 Codex\uFF0C\u8BF4\u201C\u91CD\u65B0\u8FDE\u63A5 Box3D\u201D\u3002</p>"));
+      if (now() > expiresAt) return send(410, page("\u8FDE\u63A5\u5DF2\u8FC7\u671F", "<p>\u8BF7\u56DE\u5230 Codex\uFF0C\u8BF4\u201C\u91CD\u65B0\u8FDE\u63A5 Box3D\u201D\u3002</p>"));
       const url2 = new URL(req.url, localOrigin);
       if (url2.pathname === "/start/" + nonce) return send(200, page("\u5148\u767B\u5F55\u9B54\u642D", `<p>\u4F7F\u7528\u4F60\u81EA\u5DF1\u7684\u9B54\u642D\u8D26\u53F7\u6388\u6743 Box3D \u8FDE\u63A5\u5668\u8BBF\u95EE\u4E91\u7AEF\u670D\u52A1\u3002\u4E0B\u4E00\u6B65\u518D\u767B\u5F55\u7BA1\u7406\u5458\u63D0\u4F9B\u7684 Box3D \u5DE5\u4F5C\u533A\u3002</p><p>\u5BC6\u7801\u53EA\u5728\u9B54\u642D\u548C Box3D \u9875\u9762\u8F93\u5165\uFF0C\u4E0D\u8981\u53D1\u9001\u5230\u804A\u5929\u4E2D\u3002\u8FDE\u63A5\u51ED\u636E\u4EC5\u4FDD\u5B58\u5728\u672C\u673A\u3002</p><a href="${escape2(login.url)}">\u4F7F\u7528\u9B54\u642D\u8D26\u53F7\u767B\u5F55</a>`));
       if (url2.pathname === "/callback" && state === "awaiting_platform") {
@@ -20556,16 +20606,11 @@ function createOnboarding({ profile: profile2 = profile, store = createStore(), 
           phase = "login";
           platform = await login.complete(url2.href);
           phase = "access";
-          await api("/healthz");
-          phase = "pairing";
-          pending = await api("/api/pairings/start", { label: "Codex \xB7 " + os3.hostname().slice(0, 48) });
-          state = "awaiting_pairing";
-          message = "\u9B54\u642D\u5DF2\u767B\u5F55\u3002\u8BF7\u5728 Box3D \u5DE5\u4F5C\u533A\u70B9\u51FB\u201C\u8FDE\u63A5 Codex\u201D\uFF0C\u8F93\u5165\u914D\u5BF9\u7801\u5E76\u786E\u8BA4\u3002";
+          await setup();
           return send(200, page("\u9B54\u642D\u5DF2\u767B\u5F55", `<p>\u6253\u5F00\u5DE5\u4F5C\u53F0\uFF0C\u767B\u5F55\u4F60\u7684 Box3D \u6D4B\u8BD5\u8D26\u53F7\uFF0C\u7136\u540E\u70B9\u51FB\u201C\u8FDE\u63A5 Codex\u201D\u3002</p><p>\u672C\u6B21\u914D\u5BF9\u7801</p><code>${escape2(pending.code.match(/.{1,4}/g).join(" "))}</code><p>\u914D\u5BF9\u7801\u5341\u5206\u949F\u6709\u6548\u3002\u786E\u8BA4\u8FDE\u63A5\u540E\u56DE\u5230 Codex \u5373\u53EF\u5F00\u59CB\u8BBE\u8BA1\u3002</p><a href="${profile2.communityUrl}">\u6253\u5F00 Box3D \u5DE5\u4F5C\u53F0</a>`));
         } catch (error2) {
-          state = "error";
-          message = phase === "login" ? "\u9B54\u642D\u6388\u6743\u672A\u5B8C\u6210\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002\u82E5\u4ECD\u5931\u8D25\uFF0C\u8BF7\u8054\u7CFB\u7BA1\u7406\u5458\u68C0\u67E5\u8FDE\u63A5\u5668\u7248\u672C\u3002" : error2.message;
-          return send(400, page("\u8FDE\u63A5\u5C1A\u672A\u5B8C\u6210", `<p>${escape2(message)}</p>`));
+          handleFailure(error2);
+          return send(state === "retry_wait" ? 200 : 400, page(state === "retry_wait" ? "\u6B63\u5728\u7B49\u5F85\u4E91\u7AEF\u6062\u590D" : "\u8FDE\u63A5\u5C1A\u672A\u5B8C\u6210", `<p>${escape2(message)}</p><p>\u8BF7\u56DE\u5230 Codex \u67E5\u770B\u8FDE\u63A5\u8FDB\u5EA6\u3002</p>`));
         }
       }
       send(404, "\u9875\u9762\u4E0D\u5B58\u5728");
@@ -20587,32 +20632,82 @@ function createOnboarding({ profile: profile2 = profile, store = createStore(), 
       return safeStatus();
     }
   }
-  async function status() {
-    if (state === "awaiting_pairing") {
-      try {
-        const result2 = await api("/api/pairings/poll", { code: pending.code, secret: pending.secret });
-        if (result2.state === "connected") {
-          await store.write({ version: 1, profile: profile2.apiOrigin, platform, workspaceId: result2.workspaceId, token: result2.token });
-          state = "connected";
-          message = `\u5DF2\u8FDE\u63A5\u5DE5\u4F5C\u533A ${result2.workspaceId}\uFF0C\u53EF\u4EE5\u5F00\u59CB\u8BBE\u8BA1\u3002`;
-          pending = void 0;
-          return { ...safeStatus(), workspaceId: result2.workspaceId };
-        }
-      } catch (error2) {
-        state = "error";
-        message = error2.message;
-        pending = void 0;
+  function handleFailure(error2) {
+    diagnostic = error2.diagnostic;
+    if (diagnostic?.retryable && phase !== "login") {
+      state = "retry_wait";
+      nextPollAt = diagnostic.retryAt;
+      attempt++;
+      message = error2.message + " \u5F53\u524D\u8FDE\u63A5\u8FDB\u5EA6\u5DF2\u4FDD\u7559\uFF0C\u65E0\u9700\u91CD\u65B0\u767B\u5F55\u3002";
+      return;
+    }
+    state = diagnostic?.httpStatus === 410 ? "expired" : "error";
+    message = state === "expired" ? "\u914D\u5BF9\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002" : "\u8FDE\u63A5\u672A\u5B8C\u6210\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u6216\u8054\u7CFB\u7BA1\u7406\u5458\u3002";
+    pending = void 0;
+  }
+  async function setup() {
+    if (phase === "access") {
+      await api("/healthz");
+      phase = "pairing";
+    }
+    pending = await api("/api/pairings/start", { label: "Codex \xB7 " + os3.hostname().slice(0, 48) });
+    phase = "pairing_poll";
+    state = "awaiting_pairing";
+    diagnostic = void 0;
+    attempt = 0;
+    nextPollAt = 0;
+    message = "\u9B54\u642D\u5DF2\u767B\u5F55\u3002\u8BF7\u5728 Box3D \u5DE5\u4F5C\u533A\u70B9\u51FB\u201C\u8FDE\u63A5 Codex\u201D\uFF0C\u8F93\u5165\u914D\u5BF9\u7801\u5E76\u786E\u8BA4\u3002";
+  }
+  async function poll() {
+    try {
+      if (!pending) {
+        await setup();
+        return safeStatus();
       }
-      return safeStatus();
+      const result2 = await api("/api/pairings/poll", { code: pending.code, secret: pending.secret });
+      diagnostic = void 0;
+      attempt = 0;
+      state = "awaiting_pairing";
+      nextPollAt = now() + 5e3;
+      message = "\u6B63\u5728\u7B49\u5F85\u5DE5\u4F5C\u533A\u786E\u8BA4\u914D\u5BF9\u3002";
+      if (result2.state === "connected") {
+        await store.write({ version: 1, profile: profile2.apiOrigin, platform, workspaceId: result2.workspaceId, token: result2.token });
+        state = "connected";
+        message = `\u5DF2\u8FDE\u63A5\u5DE5\u4F5C\u533A ${result2.workspaceId}\uFF0C\u53EF\u4EE5\u5F00\u59CB\u8BBE\u8BA1\u3002`;
+        pending = void 0;
+        nextPollAt = 0;
+        return { ...safeStatus(), workspaceId: result2.workspaceId };
+      }
+    } catch (error2) {
+      handleFailure(error2);
+    }
+    return safeStatus();
+  }
+  async function status() {
+    if (["awaiting_pairing", "retry_wait"].includes(state)) {
+      if (polling) return polling;
+      if (now() >= (pending?.expiresAt || expiresAt)) {
+        state = "expired";
+        pending = void 0;
+        diagnostic = void 0;
+        nextPollAt = 0;
+        message = "\u914D\u5BF9\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002";
+        return safeStatus();
+      }
+      if (now() < nextPollAt) return safeStatus();
+      polling = poll().finally(() => {
+        polling = void 0;
+      });
+      return polling;
     }
     if (state !== "idle") return safeStatus();
     const saved = await store.read();
-    if (saved.profile === profile2.apiOrigin && saved.token?.expiresAt > Date.now()) return { ok: true, state: "saved", workspaceId: saved.workspaceId, message: "\u5DF2\u627E\u5230\u672C\u673A\u4FDD\u5B58\u7684\u8FDE\u63A5\uFF0C\u6B63\u5728\u4F7F\u7528\u65F6\u4F1A\u6838\u9A8C\u4E91\u7AEF\u767B\u5F55\u3002", communityUrl: profile2.communityUrl };
+    if (saved.profile === profile2.apiOrigin && saved.token?.expiresAt > now()) return { ok: true, state: "saved", workspaceId: saved.workspaceId, message: "\u5DF2\u627E\u5230\u672C\u673A\u4FDD\u5B58\u7684\u8FDE\u63A5\uFF0C\u6B63\u5728\u4F7F\u7528\u65F6\u4F1A\u6838\u9A8C\u4E91\u7AEF\u767B\u5F55\u3002", communityUrl: profile2.communityUrl };
     return { ok: true, state: "not_connected", message: "\u5C1A\u672A\u8FDE\u63A5\u3002\u8BF7\u5F00\u59CB\u767B\u5F55 Box3D\u3002", communityUrl: profile2.communityUrl };
   }
   async function config2() {
     let saved = await store.read();
-    if (saved.profile !== profile2.apiOrigin || !saved.token || saved.token.expiresAt <= Date.now()) throw Error("\u8BF7\u5148\u8C03\u7528 box3d_connect\uFF0C\u5728\u6D4F\u89C8\u5668\u767B\u5F55\u5E76\u914D\u5BF9\u3002");
+    if (saved.profile !== profile2.apiOrigin || !saved.token || saved.token.expiresAt <= now()) throw Object.assign(Error("\u8BF7\u5148\u8C03\u7528 box3d_connect\uFF0C\u5728\u6D4F\u89C8\u5668\u767B\u5F55\u5E76\u914D\u5BF9\u3002"), { code: "NOT_CONNECTED" });
     const updated = await refresh(saved.platform);
     if (updated !== saved.platform) {
       saved = { ...saved, platform: updated };
@@ -20633,8 +20728,9 @@ var localTools = [
 ];
 var result = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
 function createBridge({ onboarding = createOnboarding(), changed = () => {
-} } = {}) {
-  let remote, config2, key, connecting;
+}, now = Date.now, requestGate = createRequestGate({ now }), makeClient = () => new Client({ name: "box3d-cloud", version: profile.version }) } = {}) {
+  let remote, config2, key, connecting, discovery2, remoteTools = [], listedAt = 0, listPending, verified, statusPending;
+  const failure2 = (error2) => ({ isError: true, ...result({ ok: false, state: error2.diagnostic?.retryable ? "retry_wait" : "needs_attention", message: config2 ? remoteError(config2, error2) : "\u8FDE\u63A5\u672A\u5C31\u7EEA\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55 Box3D\u3002", ...error2.diagnostic ? { diagnostic: error2.diagnostic, retryAt: error2.diagnostic.retryAt } : {}, ...discovery2 ? { discovery: discovery2 } : {} }) });
   async function connected() {
     const next = await onboarding.config(), nextKey = next.token + next.platformToken;
     if (remote && key === nextKey) return remote;
@@ -20642,8 +20738,11 @@ function createBridge({ onboarding = createOnboarding(), changed = () => {
     connecting = (async () => {
       if (remote) await remote.close();
       remote = void 0;
-      config2 = next;
-      const client = new Client({ name: "box3d-cloud", version: profile.version });
+      config2 = { ...next, requestGate };
+      remoteTools = [];
+      listedAt = 0;
+      verified = void 0;
+      const client = makeClient();
       try {
         await client.connect(new StreamableHTTPClientTransport(new URL(config2.origin + "/mcp"), { requestInit: { headers: credentialHeaders(config2), redirect: "error" }, fetch: boundFetch(config2) }));
       } catch (e) {
@@ -20660,32 +20759,58 @@ function createBridge({ onboarding = createOnboarding(), changed = () => {
     return connecting;
   }
   async function list() {
-    try {
-      return [...localTools, ...(await (await connected()).listTools()).tools.filter((t) => !localTools.some((l) => l.name === t.name))];
-    } catch {
-      return localTools;
-    }
+    if (listPending) return listPending;
+    if (discovery2?.retryAt > now() || listedAt > now()) return [...localTools, ...remoteTools];
+    listPending = (async () => {
+      try {
+        const found = (await (await connected()).listTools()).tools.filter((t) => !localTools.some((l) => l.name === t.name));
+        const notify = discovery2?.state === "unavailable" || JSON.stringify(found) !== JSON.stringify(remoteTools);
+        remoteTools = found;
+        discovery2 = { state: "available" };
+        listedAt = now() + 3e4;
+        if (notify) await changed();
+      } catch (error2) {
+        if (error2.code === "NOT_CONNECTED") {
+          discovery2 = { state: "not_connected" };
+          return localTools;
+        }
+        discovery2 = { state: "unavailable", message: "\u8BBE\u8BA1\u5DE5\u5177\u6682\u65F6\u65E0\u6CD5\u52A0\u8F7D\uFF0C\u8BF7\u67E5\u770B\u8FDE\u63A5\u72B6\u6001\u540E\u7A0D\u5019\u91CD\u8BD5\u3002", retryAt: error2.diagnostic?.retryAt || now() + 1e4, ...error2.diagnostic ? { diagnostic: { ...error2.diagnostic, phase: "tool_discovery" } } : {} };
+      }
+      return [...localTools, ...remoteTools];
+    })().finally(() => {
+      listPending = void 0;
+    });
+    return listPending;
+  }
+  async function checkStatus() {
+    const status = await onboarding.status();
+    if (!["connected", "saved"].includes(status.state)) return result({ ...status, ...discovery2 ? { discovery: discovery2 } : {} });
+    const blocked = requestGate.pending();
+    if (blocked) throw blocked;
+    if (verified?.until > now()) return result({ ...verified.status, ...discovery2 ? { discovery: discovery2 } : {} });
+    const checked = await (await connected()).callTool({ name: "box3d_status", arguments: {} });
+    if (checked.isError) return checked;
+    const actual = checked.structuredContent || JSON.parse(checked.content.find((c) => c.type === "text").text);
+    await list();
+    const value = { ...status, state: "connected", message: "\u5DF2\u8FDE\u63A5\u4E91\u7AEF\u5DE5\u4F5C\u533A\uFF0C\u53EF\u4EE5\u5F00\u59CB\u8BBE\u8BA1\u3002", workspaceId: actual.workspaceId, service: actual, discovery: discovery2 };
+    verified = { until: now() + 5e3, status: value };
+    return result(value);
   }
   async function call(name, args2 = {}) {
     try {
       if (name === "box3d_connect") return result(await onboarding.begin());
       if (name === "box3d_connection_status") {
-        const status = await onboarding.status();
-        if (["connected", "saved"].includes(status.state)) {
-          const checked = await (await connected()).callTool({ name: "box3d_status", arguments: {} });
-          if (checked.isError) return checked;
-          const actual = checked.structuredContent || JSON.parse(checked.content.find((c) => c.type === "text").text);
-          await changed();
-          return result({ ...status, state: "connected", message: "\u5DF2\u8FDE\u63A5\u4E91\u7AEF\u5DE5\u4F5C\u533A\uFF0C\u53EF\u4EE5\u5F00\u59CB\u8BBE\u8BA1\u3002", workspaceId: actual.workspaceId, service: actual });
-        }
-        return result(status);
+        if (!statusPending) statusPending = checkStatus().finally(() => {
+          statusPending = void 0;
+        });
+        return await statusPending;
       }
       const client = await connected();
       if (name === "box3d_import_image") return result(await createFileBridge(config2).upload(args2));
       if (name === "box3d_download_export") return result(await createFileBridge(config2).download(args2));
       return await client.callTool({ name, arguments: args2 });
     } catch (error2) {
-      return { isError: true, ...result({ ok: false, state: "needs_attention", message: config2 ? remoteError(config2, error2) : "\u8FDE\u63A5\u672A\u5C31\u7EEA\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55 Box3D\u3002" }) };
+      return failure2(error2);
     }
   }
   return { list, call, async close() {
@@ -20694,41 +20819,36 @@ function createBridge({ onboarding = createOnboarding(), changed = () => {
   } };
 }
 
+// scripts/cli-connect.mjs
+async function connect(bridge2, show2, { now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), timeoutMs = 15 * 60 * 1e3 } = {}) {
+  const deadline = now() + timeoutMs;
+  let current = await bridge2.call("box3d_connect"), last;
+  while (true) {
+    const status = current.structuredContent || current;
+    const display = JSON.stringify(status);
+    if (display !== last) {
+      show2(status);
+      last = display;
+    }
+    if (status.state === "connected") return 0;
+    if (["error", "expired", "cancelled", "needs_attention"].includes(status.state) || current.isError && !status.diagnostic?.retryable) return 1;
+    if (now() >= deadline) {
+      show2({ ok: false, state: "expired", message: "\u8FDE\u63A5\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002" });
+      return 1;
+    }
+    await sleep(Math.min(Math.max(5e3, (status.retryAt || 0) - now()), deadline - now()));
+    current = await bridge2.call("box3d_connection_status");
+  }
+}
+
 // scripts/cli.mjs
 var bridge = createBridge();
 var [command, ...args] = process.argv.slice(2);
 var show = (value) => console.log(JSON.stringify(value));
 try {
   if (command === "connect") {
-    const initial = await bridge.call("box3d_connect");
-    show(initial.structuredContent);
-    if (initial.isError || initial.structuredContent?.state === "error") {
-      await bridge.close();
-      process.exitCode = 1;
-    } else {
-      let checking = false;
-      const timer = setInterval(async () => {
-        if (checking) return;
-        checking = true;
-        try {
-          const current = await bridge.call("box3d_connection_status");
-          const s = current.structuredContent;
-          if (s?.state === "connected" || s?.state === "error" || current.isError) {
-            show(s || current);
-            clearInterval(timer);
-            await bridge.close();
-          }
-        } finally {
-          checking = false;
-        }
-      }, 3e3);
-      const timeout = setTimeout(async () => {
-        clearInterval(timer);
-        show({ state: "expired", message: "\u8FDE\u63A5\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5\u3002" });
-        await bridge.close();
-      }, 15 * 60 * 1e3);
-      timeout.unref();
-    }
+    process.exitCode = await connect(bridge, show);
+    await bridge.close();
   } else {
     if (command === "status") show(await bridge.call("box3d_connection_status"));
     else if (command === "tools") show(await bridge.list());

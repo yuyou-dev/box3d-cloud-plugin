@@ -20,3 +20,7 @@ status.workspaceId 是服务器已认证的工作区标识，不是本机源码�
 需要生成兼容 PDF/DXF/工艺草案时，调用 box3d_export，提供已保存 projectId 和准确 revision；ICC 签样印厂包继续使用 box3d_press_pack。exports 返回服务器 artifactId 和下载地址，不能把它们称为本机文件。需要本机交付文件时调用 box3d_download_export，并使用它返回的本机绝对路径。没有可选 stdio 文件桥时，使用工作台上传、下载界面。远程 HTTP MCP 不接受服务器任意文件路径。
 
 不要启动或搜索本机 Box3D checkout，不设置 BOX3D_WORKSPACE，不猜回环服务端口。当前连接不可用时报告连接/登录问题。用户自己的 Codex 登录、图片生成、Blender 安装均属于用户设备；远程服务不会读取这些凭据或自动打开本机程序。
+
+## 暂时性限流
+
+遇到 retry_wait 保留当前连接进程，按 retryAt 等待，不要重新 OAuth 或创建新配对；配对仅在实际过期后重新开始。仅出现四个本地工具时，调用 box3d_connection_status 查看 discovery；不要假定云端没有设计能力。优先复用 MCP 会话。不要自动重放 create/apply；先读取原工程与计划回执，必要时使用原 planId/digest 幂等重试。来源 unknown 的 429 不归因到魔搭或 Box3D。

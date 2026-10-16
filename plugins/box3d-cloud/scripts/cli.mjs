@@ -1,17 +1,12 @@
 import fs from 'node:fs/promises';
 import {createBridge} from './bridge.mjs';
+import {connect} from './cli-connect.mjs';
 const bridge=createBridge();
 const [command,...args]=process.argv.slice(2);
 const show=value=>console.log(JSON.stringify(value));
 try{
  if(command==='connect'){
-  const initial=await bridge.call('box3d_connect');show(initial.structuredContent);
-  if(initial.isError||initial.structuredContent?.state==='error'){await bridge.close();process.exitCode=1;}
-  else{
-   let checking=false;
-   const timer=setInterval(async()=>{if(checking)return;checking=true;try{const current=await bridge.call('box3d_connection_status');const s=current.structuredContent;if(s?.state==='connected'||s?.state==='error'||current.isError){show(s||current);clearInterval(timer);await bridge.close();}}finally{checking=false;}},3000);
-   const timeout=setTimeout(async()=>{clearInterval(timer);show({state:'expired',message:'连接已过期，请重新连接。'});await bridge.close();},15*60*1000);timeout.unref();
-  }
+  process.exitCode=await connect(bridge,show);await bridge.close();
  }else{
   if(command==='status')show(await bridge.call('box3d_connection_status'));
   else if(command==='tools')show(await bridge.list());

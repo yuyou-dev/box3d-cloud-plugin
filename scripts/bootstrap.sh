@@ -26,12 +26,12 @@ if ! command -v codex >/dev/null 2>&1 && [ -z "${BOX3D_CODEX_BIN:-}" ]; then
   BOX3D_CODEX_BIN="$base/tools/codex/node_modules/.bin/codex"; export BOX3D_CODEX_BIN
 fi
 if ! command -v git >/dev/null 2>&1; then echo '缺少 Git，请让 Codex 从系统官方软件源安装后继续。'; exit 1; fi
-release=https://github.com/yuyou-dev/box3d-cloud-plugin/releases/download/v0.2.2
-curl --fail --silent --show-error --location "$release/box3d-cloud-0.2.2.tar.gz" -o "$base/downloads/plugin.tar.gz"
-curl --fail --silent --show-error --location "$release/box3d-cloud-0.2.2.sha256" -o "$base/downloads/plugin.sha256"
+release=https://github.com/yuyou-dev/box3d-cloud-plugin/releases/download/v0.2.3
+curl --fail --silent --show-error --location "$release/box3d-cloud-0.2.3.tar.gz" -o "$base/downloads/plugin.tar.gz"
+curl --fail --silent --show-error --location "$release/box3d-cloud-0.2.3.sha256" -o "$base/downloads/plugin.sha256"
 expected=$(awk '{print $1}' "$base/downloads/plugin.sha256")
 actual=$(hash_file "$base/downloads/plugin.tar.gz" | awk '{print $1}')
 [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo '插件下载校验失败，未安装。'; exit 1; }
-mkdir -p "$base/packages/0.2.2"
-tar -xzf "$base/downloads/plugin.tar.gz" -C "$base/packages/0.2.2"
-"$node_bin" "$base/packages/0.2.2/scripts/install.mjs"
+mkdir -p "$base/packages/0.2.3"
+tar -xzf "$base/downloads/plugin.tar.gz" -C "$base/packages/0.2.3"
+"$node_bin" "$base/packages/0.2.3/scripts/install.mjs"

@@ -1,4 +1,4 @@
-# Box3D Cloud 0.2.2
+# Box3D Cloud 0.2.3
 
 面向受邀设计师的薄连接器。使用发布仓库的 START_HERE.md 安装，不需要开发源码环境。
 
